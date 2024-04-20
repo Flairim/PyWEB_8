@@ -1,34 +1,34 @@
-import json
-import faker
 import pika
+import json
 from mongoengine import connect
 from models import Contact
 
-connect('web8', host='mongodb+srv://flairimoll:h4G2#6tAA$.s59Z@web8.jltbxwa.mongodb.net/?retryWrites=true&w=majority&appName=web8')
+def connect_to_database():
+    connect('web8', host='mongodb+srv://flairimoll:h4G2#6tAA$.s59Z@web8.jltbxwa.mongodb.net/?retryWrites=true&w=majority&appName=web8')
 
-connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
-channel = connection.channel()
+def send_contacts_to_queue():
+    connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+    channel = connection.channel()
 
-channel.queue_declare(queue='contacts_queue', durable=True)
+    channel.queue_declare(queue='contacts_queue')
 
-fake = faker.Faker()
-
-for _ in range(10):  
-    fullname = fake.name()
-    email = fake.email()
-    phone = fake.phone_number()
-    
-    contact = Contact(fullname=fullname, email=email, phone=phone)
-    contact.save()
-    
-    channel.basic_publish(
-        exchange='',
-        routing_key='contacts_queue',
-        body=str(contact.id),
-        properties=pika.BasicProperties(
-            delivery_mode=2,  
+    contacts = []
+    for i in range(5):
+        contact = Contact(
+            fullname=f"John Doe {i}",
+            email=f"john.doe{i}@example.com",
+            subject="Hello",
+            message="This is a test message."
         )
-    )
+        contact.save()
+        contacts.append(str(contact.id))
 
-print("Фейкові контакти створено та опубліковано в черзі RabbitMQ")
-connection.close()
+    for contact_id in contacts:
+        channel.basic_publish(exchange='', routing_key='contacts_queue', body=contact_id)
+        print(f" [x] Відправлено {contact_id}")
+
+    connection.close()
+
+if __name__ == "__main__":
+    connect_to_database()
+    send_contacts_to_queue()
